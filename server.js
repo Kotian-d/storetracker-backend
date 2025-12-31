@@ -48,7 +48,11 @@ app.get("/api/store", authenticateToken, async (req, res) => {
   try {
     // The .find({}) method with an empty object retrieves ALL documents
     // from the 'Store' collection.
-    const stores = await Store.find({}).populate("product");
+    if(req.user.roles.includes('admin')){
+      const stores = await Store.find({}).populate(["product", "user"]);
+      return res.status(200).json(stores);
+    }
+    const stores = await Store.find({ user: req.user._id }).populate(["product", "user"]);
 
     // Respond with a 200 OK status and the array of stores in JSON format.
     res.status(200).json(stores);
@@ -101,11 +105,11 @@ app.get("/api/store/:id", authenticateToken, async (req, res) => {
 // 4. Update Location (Lat/Long)
 app.put("/api/store/:id/location", authenticateToken, async (req, res) => {
   try {
-    const { lat, long } = req.body;
+    const { lat, long, user, product, owner, email } = req.body;
 
     const updatedStore = await Store.findByIdAndUpdate(
       req.params.id,
-      { lat, long },
+      { lat, long, user, product, owner, email },
       { new: true } // Return the updated document
     );
 
@@ -164,7 +168,7 @@ app.post(
   async (req, res) => {
     const filePath = req.file ? req.file.path : null;
     const productId = req.body.product;
-    console.log("Received productId:", productId);
+    const userId = req.body.user;
     console.log("Excel file path:", filePath);
 
     if (!filePath) {
@@ -200,10 +204,10 @@ app.post(
           technicianId: row["Technician ID"] || "",
           technicianName: row["Technician Name"] || "",
           product: productId,
+          user: userId,
         });
       }
 
-      console.log(`Parsed ${storesToInsert} rows from Excel.`);
       // 3. Bulk Insert into MongoDB
       // Mongoose insertMany is highly efficient for bulk operations
       const result = await Store.insertMany(storesToInsert, { ordered: false });

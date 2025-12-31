@@ -14,7 +14,8 @@ const storeSchema = new mongoose.Schema({
     unique: true 
   },
   contact: { 
-    type: String, 
+    type: String,
+    unique: true,
     required: true 
   },
   // Location data
