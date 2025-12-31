@@ -52,7 +52,7 @@ app.get("/api/store", authenticateToken, async (req, res) => {
       const stores = await Store.find({}).populate(["product", "user"]);
       return res.status(200).json(stores);
     }
-    const stores = await Store.find({ user: req.user._id }).populate(["product", "user"]);
+    const stores = await Store.find({ user: req.user.userId }).populate(["product", "user"]);
 
     // Respond with a 200 OK status and the array of stores in JSON format.
     res.status(200).json(stores);
