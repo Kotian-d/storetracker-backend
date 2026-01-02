@@ -28,7 +28,6 @@ app.use(json());
 // Serve the 'uploads' folder statically so the Flutter app can view images
 app.use("/uploads", express.static("uploads"));
 
-
 // --- Image Upload Configuration (Multer) ---
 const storage = diskStorage({
   destination: (req, file, cb) => {
@@ -48,11 +47,14 @@ app.get("/api/store", authenticateToken, async (req, res) => {
   try {
     // The .find({}) method with an empty object retrieves ALL documents
     // from the 'Store' collection.
-    if(req.user.roles.includes('admin')){
+    if (req.user.roles.includes("admin")) {
       const stores = await Store.find({}).populate(["product", "user"]);
       return res.status(200).json(stores);
     }
-    const stores = await Store.find({ user: req.user.userId }).populate(["product", "user"]);
+    const stores = await Store.find({ user: req.user.userId }).populate([
+      "product",
+      "user",
+    ]);
 
     // Respond with a 200 OK status and the array of stores in JSON format.
     res.status(200).json(stores);
@@ -67,29 +69,34 @@ app.get("/api/store", authenticateToken, async (req, res) => {
 });
 
 // 2. Create a New Store
-app.post("/api/store", authenticateToken, upload.single("storeImage"), async (req, res) => {
-  try {
-    // If an image was uploaded, get the path, otherwise empty string
-    const imagePath = req.file ? `/uploads/${req.file.filename}` : "";
+app.post(
+  "/api/store",
+  authenticateToken,
+  upload.single("storeImage"),
+  async (req, res) => {
+    try {
+      // If an image was uploaded, get the path, otherwise empty string
+      const imagePath = req.file ? `/uploads/${req.file.filename}` : "";
 
-    const newStore = new Store({
-      name: req.body.name,
-      owner: req.body.owner,
-      email: req.body.email,
-      contact: req.body.contact,
-      lat: req.body.lat,
-      long: req.body.long,
-      storeImage: imagePath,
-      isTechnician: req.body.isTechnician === "true", // Parse string to boolean
-      technicianId: req.body.technicianId,
-    });
+      const newStore = new Store({
+        name: req.body.name,
+        owner: req.body.owner,
+        email: req.body.email,
+        contact: req.body.contact,
+        lat: req.body.lat,
+        long: req.body.long,
+        storeImage: imagePath,
+        isTechnician: req.body.isTechnician === "true", // Parse string to boolean
+        technicianId: req.body.technicianId,
+      });
 
-    const savedStore = await newStore.save();
-    res.status(201).json(savedStore);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+      const savedStore = await newStore.save();
+      res.status(201).json(savedStore);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
   }
-});
+);
 
 // 3. Get Store Data by ID
 app.get("/api/store/:id", authenticateToken, async (req, res) => {
@@ -105,15 +112,32 @@ app.get("/api/store/:id", authenticateToken, async (req, res) => {
 // 4. Update Location (Lat/Long)
 app.put("/api/store/:id/location", authenticateToken, async (req, res) => {
   try {
-    const { lat, long, user, product, owner, email } = req.body;
+    const { lat, long, user, product, owner, email, contact } = req.body;
+
+    if (req.user.roles !== "admin" && req.user.userId !== user) {
+      return res
+        .status(403)
+        .json({
+          message: "Forbidden: You don't have permission to update this store.",
+        });
+    }
+
+    if (req.user.roles !== "admin") {
+      const updatedStore = await Store.findByIdAndUpdate(
+        req.params.id,
+        { lat, long },
+        { new: true } // Return the updated document
+      );
+      return res.json(updatedStore);
+    }
 
     const updatedStore = await Store.findByIdAndUpdate(
       req.params.id,
-      { lat, long, user, product, owner, email },
+      { lat, long, user, product, owner, email, contact },
       { new: true } // Return the updated document
     );
 
-    res.json(updatedStore);
+    return res.json(updatedStore);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -267,7 +291,7 @@ app.get("/api/users", authenticateToken, async (req, res) => {
   }
 });
 
-app.get("/api/geocode", authenticateToken,  async (req, res) => {
+app.get("/api/geocode", authenticateToken, async (req, res) => {
   const q = (req.query.q || "").trim();
   if (!q) return res.status(400).json({ error: "Missing q" });
 
@@ -384,44 +408,45 @@ app.post("/api/auth/login", async (req, res) => {
   console.log("Login attempt for user:", username, password);
 
   if (!username || !password) {
-    return res
-      .status(400)
-      .json({
-        status: "error",
-        message: "Username and password are required.",
-      });
+    return res.status(400).json({
+      status: "error",
+      message: "Username and password are required.",
+    });
   }
 
   try {
-  const user = await User.findOne({ username });
-  if (!user) {
+    const user = await User.findOne({ username });
+    if (!user) {
+      return res
+        .status(401)
+        .json({ status: "error", message: "Invalid username or password." });
+    }
+
+    if (!bcrypt.compareSync(password, user.password)) {
+      return res
+        .status(401)
+        .json({ status: "error", message: "Invalid username or password." });
+    }
+
+    const token = jwt.sign(
+      { userId: user._id, username: user.username, roles: user.roles },
+      process.env.JWT_SECRET,
+      { expiresIn: "30d" }
+    );
+
     return res
-      .status(401)
-      .json({ status: "error", message: "Invalid username or password." });
-  }
-
-  if (!bcrypt.compareSync(password, user.password)) {
-    return res
-      .status(401)
-      .json({ status: "error", message: "Invalid username or password." });
-  }
-
-  const token = jwt.sign(
-    { userId: user._id, username: user.username, roles: user.roles },
-    process.env.JWT_SECRET,
-    { expiresIn: "30d" }
-  );
-
-  return res
-    .status(200)
-    .json({ success: true, token: token, user: { id: user._id, username: user.username } });
-
+      .status(200)
+      .json({
+        success: true,
+        token: token,
+        user: { role: user.roles, username: user.username },
+      });
   } catch (error) {
     console.error("Login error:", error);
     return res
       .status(500)
       .json({ status: "error", message: "Internal server error." });
-  } 
+  }
 });
 
 app.get("/api/auth/verify", authenticateToken, async (req, res) => {
@@ -468,9 +493,14 @@ app.post("/api/auth/register", async (req, res) => {
   return res.status(201).json({ message: "User registered successfully" });
 });
 
-app.get('/run', async (req, res) => {
-  const result = await Store.find({ product: '693f80575bbfac018266a339'});
-  result.map(async store => await Store.findByIdAndUpdate(store._id, { user: '694e6b6ae44e2133a9b2be68' }));
+app.get("/run", async (req, res) => {
+  const result = await Store.find({ product: "693f80575bbfac018266a339" });
+  result.map(
+    async (store) =>
+      await Store.findByIdAndUpdate(store._id, {
+        user: "694e6b6ae44e2133a9b2be68",
+      })
+  );
   res.json(result);
 });
 
