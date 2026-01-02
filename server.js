@@ -47,7 +47,7 @@ app.get("/api/store", authenticateToken, async (req, res) => {
   try {
     // The .find({}) method with an empty object retrieves ALL documents
     // from the 'Store' collection.
-    if (req.user.roles.includes("admin")) {
+    if (req.user.roles === "admin") {
       const stores = await Store.find({}).populate(["product", "user"]);
       return res.status(200).json(stores);
     }
@@ -429,7 +429,7 @@ app.post("/api/auth/login", async (req, res) => {
     }
 
     const token = jwt.sign(
-      { userId: user._id, username: user.username, role: user.roles },
+      { userId: user._id, username: user.username, roles: user.roles },
       process.env.JWT_SECRET,
       { expiresIn: "30d" }
     );
@@ -450,7 +450,7 @@ app.post("/api/auth/login", async (req, res) => {
 app.get("/api/auth/verify", authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select("roles username");
-    res.json({ user });
+    res.json({ user: { role: user.roles, username: user.username } });
   } catch (error) {
     console.error("Verify error:", error);
     res.status(500).json({ error: "Failed to verify user" });
