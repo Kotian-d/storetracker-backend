@@ -88,6 +88,8 @@ app.post(
         storeImage: imagePath,
         isTechnician: req.body.isTechnician === "true", // Parse string to boolean
         technicianId: req.body.technicianId,
+        product: req.body.product,
+        user: req.body.user,
       });
 
       const savedStore = await newStore.save();
@@ -115,11 +117,9 @@ app.put("/api/store/:id/location", authenticateToken, async (req, res) => {
     const { lat, long, user, product, owner, email, contact } = req.body;
 
     if (req.user.roles !== "admin" && req.user.userId !== user) {
-      return res
-        .status(403)
-        .json({
-          message: "Forbidden: You don't have permission to update this store.",
-        });
+      return res.status(403).json({
+        message: "Forbidden: You don't have permission to update this store.",
+      });
     }
 
     if (req.user.roles !== "admin") {
@@ -434,13 +434,11 @@ app.post("/api/auth/login", async (req, res) => {
       { expiresIn: "30d" }
     );
 
-    return res
-      .status(200)
-      .json({
-        success: true,
-        token: token,
-        user: { role: user.roles, username: user.username },
-      });
+    return res.status(200).json({
+      success: true,
+      token: token,
+      user: { role: user.roles, username: user.username },
+    });
   } catch (error) {
     console.error("Login error:", error);
     return res
@@ -451,7 +449,7 @@ app.post("/api/auth/login", async (req, res) => {
 
 app.get("/api/auth/verify", authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select("-password");
+    const user = await User.findById(req.user.userId).select("roles username");
     res.json({ user });
   } catch (error) {
     console.error("Verify error:", error);
