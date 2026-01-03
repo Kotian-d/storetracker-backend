@@ -457,6 +457,16 @@ app.get("/api/auth/verify", authenticateToken, async (req, res) => {
   }
 });
 
+app.get("/api/auth/profile", authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    res.json({ role: user.roles, username: user.username, name: user.name });
+  } catch (error) {
+    console.error("Verify error:", error);
+    res.status(500).json({ error: "Failed to verify user" });
+  }
+});
+
 app.post("/api/auth/logout", (req, res) => {
   res.clearCookie("token");
   res.json({ success: true });
