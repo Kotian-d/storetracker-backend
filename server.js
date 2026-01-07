@@ -114,7 +114,7 @@ app.get("/api/store/:id", authenticateToken, async (req, res) => {
 // 4. Update Location (Lat/Long)
 app.put("/api/store/:id/location", authenticateToken, async (req, res) => {
   try {
-    const { lat, long, user, product, owner, email, contact, technicianId, isTechnician, technicianName } = req.body;
+    const { lat, long, name, user, product, owner, email, contact, technicianId, isTechnician, technicianName } = req.body;
 
     if (req.user.roles !== "admin" && req.user.userId !== user) {
       return res.status(403).json({
@@ -133,7 +133,7 @@ app.put("/api/store/:id/location", authenticateToken, async (req, res) => {
 
     const updatedStore = await Store.findByIdAndUpdate(
       req.params.id,
-      { lat, long, user, product, owner, email, contact, technicianId, isTechnician, technicianName },
+      { lat, long, name, user, product, owner, email, contact, technicianId, isTechnician, technicianName },
       { new: true } // Return the updated document
     );
 
